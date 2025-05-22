@@ -1,0 +1,67 @@
+The format of writing each MySQL clause (no code, just syntax structure):
+
+SELECT – Used to specify the columns to retrieve.
+
+FROM – Specifies the table(s) to retrieve data from.
+
+WHERE – Filters rows based on a condition.
+
+JOIN – Combines rows from two or more tables based on a related column.
+
+GROUP BY – Groups rows that have the same values into summary rows.
+
+HAVING – Filters groups created by GROUP BY based on aggregate conditions.
+
+ORDER BY – Sorts the result set by one or more columns.
+
+LIMIT – Restricts the number of rows returned.
+
+OFFSET – Skips a specified number of rows before starting to return rows.
+
+DISTINCT – Eliminates duplicate rows from the result.
+
+CASE – Implements conditional logic in queries.
+
+UNION / UNION ALL – Combines the result sets of two or more SELECT statements.
+
+IN / NOT IN – Checks whether a value exists in a list or subquery.
+
+BETWEEN – Filters values within a given range.
+
+LIKE – Filters based on pattern matching.
+
+IS NULL / IS NOT NULL – Tests for null or non-null values.
+
+EXISTS / NOT EXISTS – Tests for the existence of rows in a subquery.
+
+RANK() OVER() – Assigns a rank to each row within a partition.
+
+PARTITION BY – Divides the result set into partitions for ranking/window functions.
+
+WITH (CTE) – Defines a common table expression used within a query.
+
+
+
+The logical order of execution of SQL clauses in MySQL:
+
+FROM – Identify source tables.
+
+JOIN – Perform joins and form intermediate row sets.
+
+WHERE – Filter rows before grouping.
+
+GROUP BY – Group the filtered rows.
+
+HAVING – Filter the grouped data.
+
+SELECT – Pick and compute columns to display.
+
+DISTINCT – Remove duplicate rows from the selected output.
+
+WINDOW FUNCTIONS (e.g., RANK() OVER()) – Apply window functions to result rows.
+
+ORDER BY – Sort the final result set.
+
+LIMIT / OFFSET – Return only a portion of the final result.
+
+This order is different from the writing order but reflects how MySQL internally processes a query.
