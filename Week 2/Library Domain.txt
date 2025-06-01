@@ -1,0 +1,502 @@
+USE tms;
+
+-- 1. How many books are there in each category, in the library?
+
+SELECT book_category, COUNT(book_id) AS total_books
+FROM books
+GROUP BY book_category
+ORDER BY total_books DESC;
+
+-- 2. Title wise how many copies of books are available in the 'rdbms' category?
+
+SELECT title, SUM(copy_no) AS total_copies
+FROM books
+WHERE book_category = 'rdbms'
+GROUP BY title
+ORDER BY total_copies DESC;
+
+-- 3. Prepare a list of the latest edition of the books in the category title sequence, in the following format: Category | title | edition
+
+SELECT book_category AS category, title, edition
+FROM books AS b
+WHERE edition = (
+	SELECT MAX(b2.edition)
+    FROM books AS b2
+    WHERE b2.title = b.title AND b2.book_category = b.book_category
+)
+ORDER BY book_category, title;
+
+-- 4. Which publisher(s) looks are the maximum available in the library?
+
+SELECT publisher_name, total_copies
+FROM (
+	SELECT p.publisher_name, SUM(b.copy_no) AS total_copies,
+    RANK() OVER(ORDER BY SUM(b.copy_no) DESC) AS rnk
+    FROM books AS b
+    JOIN publishers AS p
+    ON b.publisher_id = p.publisher_id
+    GROUP BY p.publisher_name
+)ranked
+WHERE rnk = 1;
+
+-- 5. Prepare a list of books that are due as on date, in delay descending sequence, in the following format: Title | member name | due date | delay
+
+SELECT b.title, m.member_name, bt.due_date, DATEDIFF(CURDATE(), bt.due_date) AS delay
+FROM book_transaction AS bt
+JOIN books AS b
+ON bt.book_id = b.book_id
+JOIN members AS m
+ON bt.member_id = m.member_id
+WHERE bt.return_date IS NULL AND bt.due_date < CURDATE()
+ORDER BY delay DESC;
+
+-- 6. What are the categories of books published by 
+
+SELECT DISTINCT b.book_category
+FROM books b
+JOIN publishers p 
+ON b.publisher_id = p.publisher_id
+WHERE p.publisher_name = 'willey publications';
+
+-- 7. Which are the categories of books that are least utilised
+
+SELECT book_category, total_issues
+FROM (
+	SELECT b.book_category, COUNT(bt.book_id) AS total_issues,
+    RANK() OVER(ORDER BY COUNT(bt.book_id) ASC) AS rnk
+    FROM books AS b
+    LEFT JOIN book_transaction AS bt
+    ON b.book_id = bt.book_id
+    GROUP BY b.book_category
+)ranked
+WHERE rnk = 1;
+
+-- 8. Which are the categories of books that are most utilised
+
+SELECT book_category, total_issues
+FROM (
+	SELECT b.book_category, COUNT(bt.book_id) AS total_issues,
+    RANK() OVER(ORDER BY COUNT(bt.book_id) DESC) AS rnk
+    FROM books AS b
+    LEFT JOIN book_transaction AS bt
+    ON b.book_id = bt.book_id
+    GROUP BY b.book_category
+)ranked
+WHERE rnk = 1;
+
+-- 9. Which books were not lent during the last quarter of the year (oct-dec 2003)
+
+SELECT b.book_id, b.title, b.book_category, b.copy_no, b.edition
+FROM books AS b
+WHERE b.book_id NOT IN (
+	SELECT DISTINCT book_id
+    FROM book_transaction AS bt
+    WHERE issue_date BETWEEN '2003-10-01' AND '2003-12-31'
+)
+ORDER BY b.title;
+
+-- 10. List the book detail taken by each member.
+
+SELECT m.member_id, m.member_name, b.book_id, b.title, b.book_category, bt.issue_date, bt.due_date, bt.return_date
+FROM members AS m
+JOIN book_transaction AS bt
+ON m.member_id = bt.member_id
+JOIN books AS b
+ON bt.book_id = b.book_id
+ORDER BY m.member_name, bt.issue_date DESC;
+
+-- 11. Which author's book is more in number in the library?
+
+SELECT author_id, author_name, total_books
+FROM (
+	SELECT a.author_id, a.author_name, COUNT(b.book_id) AS total_books,
+    RANK() OVER(ORDER BY COUNT(b.book_id) DESC) AS rnk
+    FROM authors AS a
+    JOIN books AS b
+    ON a.author_id = b.author_id
+    GROUP BY a.author_id, a.author_name
+)ranked
+WHERE rnk = 1;
+
+-- 12. Which author's book is costliest?
+
+SELECT author_id, author_name, max_price
+FROM (
+	SELECT a.author_id, a.author_name, MAX(b.price) AS max_price,
+    RANK() OVER(ORDER BY MAX(b.price) DESC) AS rnk
+    FROM authors AS a
+    JOIN books AS b
+    ON a.author_id = b.author_id
+    GROUP BY a.author_id, a.author_name
+)ranked
+WHERE rnk = 1;
+
+-- 13. Along with member details, list the books that crosses the due date.
+
+SELECT m.member_id, m.member_name, m.member_dept, b.book_id, b.title, bt.issue_date, bt.due_date, DATEDIFF(CURDATE(), bt.due_date) AS delay
+FROM book_transaction AS bt
+JOIN members AS m
+ON bt.member_id = m.member_id
+JOIN books AS b
+ON bt.book_id = b.book_id
+WHERE bt.return_date IS NULL AND bt.due_date < CURDATE()
+ORDER BY delay DESC;
+
+-- 14. Who is the most delaying member in the library?
+
+SELECT member_id, member_name, total_delay
+FROM (
+    SELECT m.member_id, m.member_name,
+		SUM(
+            CASE
+                WHEN bt.return_date > bt.due_date THEN DATEDIFF(bt.return_date, bt.due_date)
+                WHEN bt.return_date IS NULL AND bt.due_date < CURDATE() THEN DATEDIFF(CURDATE(), bt.due_date)
+                ELSE 0
+            END
+        ) AS total_delay,
+	RANK() OVER (ORDER BY 
+        SUM(
+            CASE
+                WHEN bt.return_date > bt.due_date THEN DATEDIFF(bt.return_date, bt.due_date)
+                WHEN bt.return_date IS NULL AND bt.due_date < CURDATE() THEN DATEDIFF(CURDATE(), bt.due_date)
+                ELSE 0
+            END
+        ) DESC) AS rnk
+    FROM members m
+    JOIN book_transaction bt 
+    ON m.member_id = bt.member_id
+    GROUP BY m.member_id, m.member_name
+) ranked
+WHERE rnk = 1;
+    
+-- 15. Which publication is being used by most of the members?
+
+SELECT publisher_name, total_members
+FROM (
+	SELECT p.publisher_name, COUNT(DISTINCT bt.member_id) AS total_members,
+    RANK() OVER(ORDER BY COUNT(DISTINCT bt.member_id) DESC) AS rnk
+    FROM publishers AS p
+    JOIN books AS b
+    ON p.publisher_id = b.publisher_id
+    JOIN book_transaction AS bt
+    ON b.book_id = bt.book_id
+    GROUP BY p.publisher_name
+)ranked
+WHERE rnk = 1;
+
+-- 16. How many copies of book available in each publication?
+
+SELECT p.publisher_id, p.publisher_name, SUM(copy_no) AS total_copies
+FROM publishers AS p
+JOIN books AS b
+ON p.publisher_id = b.publisher_id
+GROUP BY p.publisher_id, p.publisher_name;
+
+-- 17. Find the books that is lent after fewer days of its acquistion?
+
+SELECT book_id, title, issue_date, acquisition_date, days_after_acquisition
+FROM (
+    SELECT b.book_id, b.title, bt.issue_date, STR_TO_DATE(CONCAT(b.ye_of_pub, '-01-01'), '%Y-%m-%d') AS acquisition_date, DATEDIFF(bt.issue_date, STR_TO_DATE(CONCAT(b.ye_of_pub, '-01-01'), '%Y-%m-%d')) AS days_after_acquisition,
+    RANK() OVER (ORDER BY DATEDIFF(bt.issue_date, STR_TO_DATE(CONCAT(b.ye_of_pub, '-01-01'), '%Y-%m-%d')) ASC) AS rnk
+    FROM books AS b
+    JOIN book_transaction bt 
+    ON b.book_id = bt.book_id
+) ranked
+WHERE rnk = 1;
+
+-- 18. Along with book details, list the members who returns the book before the due date.
+
+SELECT m.member_id, m.member_name, b.book_id, b.title, bt.issue_date, bt.due_date, bt.return_date
+FROM book_transaction AS bt
+JOIN members AS m 
+ON bt.member_id = m.member_id
+JOIN books AS b 
+ON bt.book_id = b.book_id
+WHERE bt.return_date IS NOT NULL AND bt.return_date < bt.due_date
+ORDER BY bt.due_date;
+
+-- 19. Which is the costliest book in each publication?
+
+SELECT publisher_id, title, price
+FROM (
+	SELECT b.publisher_id, b.title, b.price,
+	RANK() OVER (PARTITION BY b.publisher_id ORDER BY b.price DESC) AS rnk
+    FROM books AS b
+) ranked
+WHERE rnk = 1;
+
+-- 20. List the authors belonging to each publication.
+
+SELECT DISTINCT p.publisher_id, p.publisher_name, a.author_id, a.author_name
+FROM books b
+JOIN authors a 
+ON b.author_id = a.author_id
+JOIN publishers p 
+ON b.publisher_id = p.publisher_id
+ORDER BY p.publisher_id, a.author_id;
+
+-- 21. Which publication's book is most delayed in returning?
+
+SELECT publisher_id, publisher_name, total_delay_days
+FROM (
+    SELECT p.publisher_id, p.publisher_name,
+        SUM(
+            CASE
+                WHEN bt.return_date > bt.due_date THEN DATEDIFF(bt.return_date, bt.due_date)
+                WHEN bt.return_date IS NULL AND bt.due_date < CURDATE() THEN DATEDIFF(CURDATE(), bt.due_date)
+                ELSE 0
+            END
+        ) AS total_delay_days,
+	RANK() OVER (ORDER BY 
+		SUM(
+            CASE
+                WHEN bt.return_date > bt.due_date THEN DATEDIFF(bt.return_date, bt.due_date)
+                WHEN bt.return_date IS NULL AND bt.due_date < CURDATE() THEN DATEDIFF(CURDATE(), bt.due_date)
+                ELSE 0
+            END
+        ) DESC) AS rnk
+    FROM publishers AS p
+    JOIN books AS b 
+    ON p.publisher_id = b.publisher_id
+    JOIN book_transaction AS bt 
+    ON b.book_id = bt.book_id
+    GROUP BY p.publisher_id, p.publisher_name
+) ranked
+WHERE rnk = 1;
+
+-- 22) Which department is frequent in accessing the library?
+
+SELECT member_dept, access_count
+FROM (
+    SELECT m.member_dept, COUNT(m.member_dept) AS access_count,
+	RANK() OVER (ORDER BY COUNT(m.member_dept) DESC) AS rnk
+    FROM book_transaction AS bt
+    JOIN members m 
+    ON bt.member_id = m.member_id
+    GROUP BY m.member_dept
+) ranked
+WHERE rnk = 1;
+
+-- 23) Which book the training dept is using frequently?
+
+SELECT book_id, title, usage_count
+FROM (
+    SELECT b.book_id, b.title, COUNT(b.book_id) AS usage_count,
+	RANK() OVER (ORDER BY COUNT(b.book_id) DESC) AS rnk
+    FROM book_transaction AS bt
+    JOIN members AS m 
+    ON bt.member_id = m.member_id
+    JOIN books AS b 
+    ON bt.book_id = b.book_id
+    WHERE m.member_dept = 'training'
+    GROUP BY b.book_id, b.title
+) ranked
+WHERE rnk = 1;
+
+-- 24) List the members in each department who accessed the library during the month of june 2003.
+
+SELECT DISTINCT m.member_dept, m.member_id, m.member_name, m.member_st_da
+FROM book_transaction AS bt
+JOIN members AS m 
+ON bt.member_id = m.member_id
+WHERE MONTH(m.member_st_da) = 6
+ORDER BY m.member_dept, m.member_name;
+
+-- 26. Who is the frequent accesser in each department?
+
+SELECT member_dept, member_id, member_name, access_count
+FROM (
+    SELECT m.member_dept, m.member_id, m.member_name, COUNT(m.member_id) AS access_count, 
+	RANK() OVER (PARTITION BY m.member_dept ORDER BY COUNT(m.member_id) DESC) AS rnk
+    FROM book_transaction bt
+    JOIN members AS m 
+    ON bt.member_id = m.member_id
+    GROUP BY m.member_dept, m.member_id, m.member_name
+) ranked
+WHERE rnk = 1;
+
+-- 27. Which is the cheapest book in each publication?
+
+SELECT publisher_id, title, price 
+FROM (
+    SELECT b.publisher_id, b.title, b.price, 
+	RANK() OVER (PARTITION BY b.publisher_id ORDER BY b.price ASC) AS rnk
+    FROM books AS b
+) ranked
+WHERE rnk = 1;
+
+-- 28. How many no. Of books available for "java" in each publication?
+
+SELECT p.publisher_id, p.publisher_name, SUM(b.copy_no) AS total_copies
+FROM books AS b
+JOIN publishers AS p 
+ON b.publisher_id = p.publisher_id
+WHERE b.title LIKE '%java%'
+GROUP BY p.publisher_id, p.publisher_name;
+
+-- 29. Count the inactive members in each department.
+
+SELECT m.member_dept, COUNT(m.member_id) AS inactive_member_count
+FROM members AS m
+WHERE m.status = 'I'
+GROUP BY member_dept;
+
+-- 30. Which book is being returned very late frequently?
+
+SELECT book_id, title, late_return_count
+FROM (
+    SELECT b.book_id, b.title, COUNT(b.book_id) AS late_return_count,
+		RANK() OVER (ORDER BY COUNT(b.book_id) DESC) AS rnk
+    FROM book_transaction AS bt
+    JOIN books AS b 
+    ON bt.book_id = b.book_id
+    WHERE bt.return_date > bt.due_date
+    GROUP BY b.book_id, b.title
+) ranked
+WHERE rnk = 1;
+
+-- 31. Which book is being favourite of each department?
+
+SELECT member_dept, book_id, title, access_count
+FROM (
+    SELECT m.member_dept, b.book_id, b.title, COUNT(b.book_id) AS access_count,
+		RANK() OVER (PARTITION BY m.member_dept ORDER BY COUNT(b.book_id) DESC) AS rank_position
+    FROM book_transaction AS bt
+    JOIN members m 
+    ON bt.member_id = m.member_id
+    JOIN books AS b 
+    ON bt.book_id = b.book_id
+    GROUP BY m.member_dept, b.book_id, b.title
+) ranked_books
+WHERE rank_position = 1;
+
+-- 32. Which books were lent during the first quarter of the year?
+
+SELECT DISTINCT b.book_id, b.title
+FROM book_transaction AS bt
+JOIN books AS b 
+ON bt.book_id = b.book_id
+WHERE bt.issue_date BETWEEN '2003-01-01' AND '2003-03-31'
+ORDER BY b.title;
+
+-- 33. Who are the inactive members in each epartment?
+
+SELECT member_dept, member_id, member_name
+FROM members
+WHERE status = 'I'
+ORDER BY member_dept, member_name;
+
+
+-- 34. Who is frequent visitor of the library?
+
+SELECT member_id, member_name, visit_count
+FROM (
+    SELECT m.member_id, m.member_name, COUNT(bt.book_id) AS visit_count,
+    RANK() OVER (ORDER BY COUNT(bt.book_id) DESC) AS rnk
+    FROM book_transaction AS bt
+    JOIN members AS m 
+    ON bt.member_id = m.member_id
+    GROUP BY m.member_id, m.member_name
+) ranked
+WHERE rnk = 1;
+
+-- 35. List the bookname, author_name, publisher_name for the books Available in rack no. 5
+
+SELECT b.title, a.author_name, p.publisher_name
+FROM books AS b
+JOIN authors AS a 
+ON b.author_id = a.author_id
+JOIN publishers AS p 
+ON b.publisher_id = p.publisher_id
+WHERE b.rack_number = 5
+ORDER BY b.title;
+
+-- 36. Which rack of books is being accessed frequently?
+
+SELECT rack_number, access_count
+FROM (
+    SELECT b.rack_number, COUNT(bt.book_id) AS access_count,
+    RANK() OVER (ORDER BY COUNT(bt.book_id) DESC) AS rnk
+    FROM book_transaction AS bt
+    JOIN books AS b 
+    ON bt.book_id = b.book_id
+    GROUP BY b.rack_number
+) ranked
+WHERE rnk = 1;
+
+-- 37. Which rack of books is being accessed least?
+
+SELECT rack_number, access_count
+FROM (
+    SELECT b.rack_number, COUNT(bt.book_id) AS access_count,
+    RANK() OVER (ORDER BY COUNT(bt.book_id) ASC) AS rank_position
+    FROM book_transaction AS bt
+    JOIN books AS b 
+    ON bt.book_id = b.book_id
+    GROUP BY b.rack_number
+) ranked
+WHERE rnk = 1;
+
+-- 38. Count the book rack wise.
+
+SELECT b.rack_number, COUNT(b.book_id) AS total_books
+FROM books AS b
+GROUP BY b.rack_number
+ORDER BY b.rack_number;
+
+
+-- 39. Who is the oldest member of the library?
+
+SELECT member_id, member_name, member_st_date
+FROM (
+		SELECT member_id, member_name, member_st_date,
+		RANK() OVER (ORDER BY member_st_date ASC) AS rnk
+    FROM members
+) ranked
+
+WHERE rnk = 1;
+
+-- 40. Which is being the favourite book (frequently accessed) of the oldest member of the library?
+
+SELECT b.book_id, b.title, rb.access_count
+FROM (
+    SELECT bt.book_id, COUNT(bt.book_id) AS access_count,
+    RANK() OVER (ORDER BY COUNT(bt.book_id) DESC) AS rnk
+    FROM book_transaction AS bt
+    WHERE bt.member_id IN (
+        SELECT om.member_id
+        FROM (
+            SELECT m.member_id,
+            RANK() OVER (ORDER BY m.member_st_date ASC) AS rnk
+            FROM members AS m
+        ) AS om
+        WHERE om.rnk = 1
+    )
+    GROUP BY bt.book_id
+) AS rb
+JOIN books AS b 
+ON rb.book_id = b.book_id
+WHERE rb.rnk = 1;
+
+-- 41. Which is being the favourite book (frequently accessed) of the frequent accesser of the library?
+
+SELECT b.book_id, b.title, rb.access_count
+FROM (
+    SELECT bt.book_id, COUNT(bt.book_id) AS access_count,
+    RANK() OVER (ORDER BY COUNT(bt.book_id) DESC) AS rnk
+    FROM book_transaction AS bt
+    WHERE bt.member_id IN (
+				SELECT fv.member_id
+        FROM (
+						SELECT bt2.member_id,
+            RANK() OVER (ORDER BY COUNT(bt2.book_id) DESC) AS rnk
+            FROM book_transaction AS bt2
+            GROUP BY bt2.member_id
+        ) AS fv
+      	WHERE fv.rnk = 1
+    )
+    GROUP BY bt.book_id
+) AS rb
+JOIN books AS b 
+ON rb.book_id = b.book_id
+WHERE rb.rnk = 1;
