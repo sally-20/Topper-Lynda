@@ -20,7 +20,7 @@ ORDER BY total_copies DESC;
 SELECT book_category AS category, title, edition
 FROM books AS b
 WHERE edition = (
-	SELECT MAX(b2.edition)
+    SELECT MAX(b2.edition)
     FROM books AS b2
     WHERE b2.title = b.title AND b2.book_category = b.book_category
 )
@@ -30,7 +30,7 @@ ORDER BY book_category, title;
 
 SELECT publisher_name, total_copies
 FROM (
-	SELECT p.publisher_name, SUM(b.copy_no) AS total_copies,
+    SELECT p.publisher_name, SUM(b.copy_no) AS total_copies,
     RANK() OVER(ORDER BY SUM(b.copy_no) DESC) AS rnk
     FROM books AS b
     JOIN publishers AS p
@@ -62,7 +62,7 @@ WHERE p.publisher_name = 'willey publications';
 
 SELECT book_category, total_issues
 FROM (
-	SELECT b.book_category, COUNT(bt.book_id) AS total_issues,
+    SELECT b.book_category, COUNT(bt.book_id) AS total_issues,
     RANK() OVER(ORDER BY COUNT(bt.book_id) ASC) AS rnk
     FROM books AS b
     LEFT JOIN book_transaction AS bt
@@ -75,7 +75,7 @@ WHERE rnk = 1;
 
 SELECT book_category, total_issues
 FROM (
-	SELECT b.book_category, COUNT(bt.book_id) AS total_issues,
+    SELECT b.book_category, COUNT(bt.book_id) AS total_issues,
     RANK() OVER(ORDER BY COUNT(bt.book_id) DESC) AS rnk
     FROM books AS b
     LEFT JOIN book_transaction AS bt
@@ -89,7 +89,7 @@ WHERE rnk = 1;
 SELECT b.book_id, b.title, b.book_category, b.copy_no, b.edition
 FROM books AS b
 WHERE b.book_id NOT IN (
-	SELECT DISTINCT book_id
+    SELECT DISTINCT book_id
     FROM book_transaction AS bt
     WHERE issue_date BETWEEN '2003-10-01' AND '2003-12-31'
 )
@@ -109,7 +109,7 @@ ORDER BY m.member_name, bt.issue_date DESC;
 
 SELECT author_id, author_name, total_books
 FROM (
-	SELECT a.author_id, a.author_name, COUNT(b.book_id) AS total_books,
+    SELECT a.author_id, a.author_name, COUNT(b.book_id) AS total_books,
     RANK() OVER(ORDER BY COUNT(b.book_id) DESC) AS rnk
     FROM authors AS a
     JOIN books AS b
@@ -122,7 +122,7 @@ WHERE rnk = 1;
 
 SELECT author_id, author_name, max_price
 FROM (
-	SELECT a.author_id, a.author_name, MAX(b.price) AS max_price,
+    SELECT a.author_id, a.author_name, MAX(b.price) AS max_price,
     RANK() OVER(ORDER BY MAX(b.price) DESC) AS rnk
     FROM authors AS a
     JOIN books AS b
@@ -161,7 +161,8 @@ FROM (
                 WHEN bt.return_date IS NULL AND bt.due_date < CURDATE() THEN DATEDIFF(CURDATE(), bt.due_date)
                 ELSE 0
             END
-        ) DESC) AS rnk
+        ) DESC
+    ) AS rnk
     FROM members m
     JOIN book_transaction bt 
     ON m.member_id = bt.member_id
@@ -173,7 +174,7 @@ WHERE rnk = 1;
 
 SELECT publisher_name, total_members
 FROM (
-	SELECT p.publisher_name, COUNT(DISTINCT bt.member_id) AS total_members,
+    SELECT p.publisher_name, COUNT(DISTINCT bt.member_id) AS total_members,
     RANK() OVER(ORDER BY COUNT(DISTINCT bt.member_id) DESC) AS rnk
     FROM publishers AS p
     JOIN books AS b
@@ -254,7 +255,8 @@ FROM (
                 WHEN bt.return_date IS NULL AND bt.due_date < CURDATE() THEN DATEDIFF(CURDATE(), bt.due_date)
                 ELSE 0
             END
-        ) DESC) AS rnk
+        ) DESC
+    ) AS rnk
     FROM publishers AS p
     JOIN books AS b 
     ON p.publisher_id = b.publisher_id
@@ -268,8 +270,8 @@ WHERE rnk = 1;
 
 SELECT member_dept, access_count
 FROM (
-    SELECT m.member_dept, COUNT(m.member_dept) AS access_count,
-	RANK() OVER (ORDER BY COUNT(m.member_dept) DESC) AS rnk
+    SELECT m.member_dept, COUNT(m.member_dept) AS access_count, 
+    RANK() OVER (ORDER BY COUNT(m.member_dept) DESC) AS rnk
     FROM book_transaction AS bt
     JOIN members m 
     ON bt.member_id = m.member_id
@@ -282,7 +284,7 @@ WHERE rnk = 1;
 SELECT book_id, title, usage_count
 FROM (
     SELECT b.book_id, b.title, COUNT(b.book_id) AS usage_count,
-	RANK() OVER (ORDER BY COUNT(b.book_id) DESC) AS rnk
+    RANK() OVER (ORDER BY COUNT(b.book_id) DESC) AS rnk
     FROM book_transaction AS bt
     JOIN members AS m 
     ON bt.member_id = m.member_id
@@ -307,7 +309,7 @@ ORDER BY m.member_dept, m.member_name;
 SELECT member_dept, member_id, member_name, access_count
 FROM (
     SELECT m.member_dept, m.member_id, m.member_name, COUNT(m.member_id) AS access_count, 
-	RANK() OVER (PARTITION BY m.member_dept ORDER BY COUNT(m.member_id) DESC) AS rnk
+    RANK() OVER (PARTITION BY m.member_dept ORDER BY COUNT(m.member_id) DESC) AS rnk
     FROM book_transaction bt
     JOIN members AS m 
     ON bt.member_id = m.member_id
@@ -346,7 +348,7 @@ GROUP BY member_dept;
 SELECT book_id, title, late_return_count
 FROM (
     SELECT b.book_id, b.title, COUNT(b.book_id) AS late_return_count,
-		RANK() OVER (ORDER BY COUNT(b.book_id) DESC) AS rnk
+    RANK() OVER (ORDER BY COUNT(b.book_id) DESC) AS rnk
     FROM book_transaction AS bt
     JOIN books AS b 
     ON bt.book_id = b.book_id
@@ -360,7 +362,7 @@ WHERE rnk = 1;
 SELECT member_dept, book_id, title, access_count
 FROM (
     SELECT m.member_dept, b.book_id, b.title, COUNT(b.book_id) AS access_count,
-		RANK() OVER (PARTITION BY m.member_dept ORDER BY COUNT(b.book_id) DESC) AS rank_position
+    RANK() OVER (PARTITION BY m.member_dept ORDER BY COUNT(b.book_id) DESC) AS rank_position
     FROM book_transaction AS bt
     JOIN members m 
     ON bt.member_id = m.member_id
@@ -449,8 +451,8 @@ ORDER BY b.rack_number;
 
 SELECT member_id, member_name, member_st_date
 FROM (
-		SELECT member_id, member_name, member_st_date,
-		RANK() OVER (ORDER BY member_st_date ASC) AS rnk
+		SELECT member_id, member_name, member_st_dt,
+		RANK() OVER (ORDER BY member_st_dt ASC) AS rnk
     FROM members
 ) ranked
 
@@ -467,7 +469,7 @@ FROM (
         SELECT om.member_id
         FROM (
             SELECT m.member_id,
-            RANK() OVER (ORDER BY m.member_st_date ASC) AS rnk
+            RANK() OVER (ORDER BY m.member_st_dt ASC) AS rnk
             FROM members AS m
         ) AS om
         WHERE om.rnk = 1
@@ -486,9 +488,9 @@ FROM (
     RANK() OVER (ORDER BY COUNT(bt.book_id) DESC) AS rnk
     FROM book_transaction AS bt
     WHERE bt.member_id IN (
-				SELECT fv.member_id
+	SELECT fv.member_id
         FROM (
-						SELECT bt2.member_id,
+	    SELECT bt2.member_id,
             RANK() OVER (ORDER BY COUNT(bt2.book_id) DESC) AS rnk
             FROM book_transaction AS bt2
             GROUP BY bt2.member_id
